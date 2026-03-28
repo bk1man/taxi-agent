@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>司机端 - 出租车调度系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            min-height: 100vh;
+        }
+
+        /* 顶部状态栏 */
+        .header {
+            background: linear-gradient(135deg, #1a73e8, #0d47a1);
+            color: white;
+            padding: 16px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .header-info {
+            display: flex;
+            flex-direction: column;
+        }
+        .header-name {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        .header-car {
+            font-size: 13px;
+            opacity: 0.85;
+        }
+        .status-badge {
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            border: 2px solid rgba(255,255,255,0.5);
+            transition: all 0.3s;
+        }
+        .status-badge.online { background: #4caf50; border-color: #4caf50; }
+        .status-badge.offline { background: #9e9e9e; border-color: #9e9e9e; }
+        .status-badge.busy { background: #ff9800; border-color: #ff9800; }
+
+        /* 登录界面 */
+        .login-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+            background: linear-gradient(135deg, #1a73e8 0%, #0d47a1 100%);
+        }
+        .login-screen.hidden { display: none; }
+        .login-card {
+            background: white;
+            border-radius: 16px;
+            padding: 40px 30px;
+            width: 100%;
+            max-width: 380px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        .login-title {
+            text-align: center;
+            font-size: 26px;
+            font-weight: 700;
+            color: #1a73e8;
+            margin-bottom: 8px;
+        }
+        .login-subtitle {
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 18px;
+        }
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            font-size: 15px;
+            transition: border-color 0.3s;
+            outline: none;
+        }
+        .form-group input:focus {
+            border-color: #1a73e8;
+        }
+        .btn-primary {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #1a73e8, #0d47a1);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(26,115,232,0.4);
+        }
+        .btn-primary:active { transform: translateY(0); }
+        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+        /* 主界面 */
+        .main-screen { display: none; }
+        .main-screen.active { display: block; }
+
+        /* 地图区域 */
+        .map-container {
+            background: #e3eaf2;
+            height: 220px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        .map-placeholder {
+            text-align: center;
+            color: #666;
+        }
+        .map-placeholder .icon {
+            font-size: 48px;
+            margin-bottom: 8px;
+        }
+        .location-log {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.7);
+            color: #00ff88;
+            font-size: 11px;
+            padding: 6px 10px;
+            border-radius: 8px;
+            max-height: 80px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+        }
+        .location-log div { margin: 2px 0; }
+
+        /* 状态切换栏 */
+        .status-bar {
+            background: white;
+            display: flex;
+            justify-content: space-around;
+            padding: 14px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .status-btn {
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            border: 2px solid #ddd;
+            background: white;
+            color: #666;
+            transition: all 0.3s;
+        }
+        .status-btn.active {
+            border-color: #1a73e8;
+            background: #e8f0fe;
+            color: #1a73e8;
+        }
+        .status-btn.online.active { border-color: #4caf50; background: #e8f5e9; color: #4caf50; }
+        .status-btn.offline.active { border-color: #9e9e9e; background: #f5f5f5; color: #9e9e9e; }
+        .status-btn.busy.active { border-color: #ff9800; background: #fff3e0; color: #ff9800; }
+
+        /* 订单区域 */
+        .order-section {
+            padding: 16px;
+        }
+        .section-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: #666;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .order-card {
+            background: white;
+            border-radius: 14px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+            margin-bottom: 14px;
+            border-left: 4px solid #ff9800;
+        }
+        .order-card.no-order {
+            border-left-color: #ddd;
+            text-align: center;
+            color: #999;
+            padding: 30px 20px;
+        }
+        .order-card.no-order .icon { font-size: 40px; margin-bottom: 10px; }
+        .order-number {
+            font-size: 13px;
+            color: #888;
+            margin-bottom: 10px;
+        }
+        .order-route {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+        .route-point {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+        .route-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-top: 4px;
+            flex-shrink: 0;
+        }
+        .route-dot.start { background: #4caf50; }
+        .route-dot.end { background: #f44336; }
+        .route-label {
+            font-size: 12px;
+            color: #888;
+        }
+        .route-address {
+            font-size: 14px;
+            color: #333;
+            font-weight: 500;
+        }
+        .route-line {
+            width: 2px;
+            height: 16px;
+            background: #ddd;
+            margin-left: 5px;
+        }
+        .order-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .btn {
+            flex: 1;
+            padding: 12px;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: all 0.3s;
+        }
+        .btn-accept {
+            background: #4caf50;
+            color: white;
+        }
+        .btn-accept:hover { background: #43a047; }
+        .btn-reject {
+            background: #f44336;
+            color: white;
+        }
+        .btn-reject:hover { background: #e53935; }
+        .btn-complete {
+            background: #1a73e8;
+            color: white;
+            width: 100%;
+        }
+        .btn-complete:hover { background: #1557b0; }
+
+        /* 历史订单 */
+        .history-section {
+            padding: 0 16px 20px;
+        }
+        .history-card {
+            background: white;
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 10px;
+            box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+        }
+        .history-card .order-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        .history-card .order-time { font-size: 12px; color: #888; }
+        .history-card .order-from { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+        .history-card .order-to { font-size: 13px; color: #666; }
+        .history-card .order-fare {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1a73e8;
+        }
+
+        /* 消息提示 */
+        .toast {
+            position: fixed;
+            top: 70px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px 24px;
+            border-radius: 25px;
+            font-size: 14px;
+            z-index: 1000;
+            transition: opacity 0.3s;
+            white-space: nowrap;
+        }
+        .toast.success { background: #4caf50; }
+        .toast.error { background: #f44336; }
+
+        /* 底部导航 */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            display: flex;
+            justify-content: space-around;
+            padding: 10px 0 20px;
+            border-top: 1px solid #eee;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+        }
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: 11px;
+            color: #999;
+            cursor: pointer;
+            padding: 4px 12px;
+            gap: 4px;
+        }
+        .nav-item .icon { font-size: 22px; }
+        .nav-item.active { color: #1a73e8; }
+
+        .content-wrap {
+            padding-bottom: 80px;
+        }
+
+        /* 模拟订单面板（测试用） */
+        .mock-order-panel {
+            background: #fff3e0;
+            border: 2px dashed #ff9800;
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 14px;
+        }
+        .mock-order-panel h4 {
+            font-size: 13px;
+            color: #ff9800;
+            margin-bottom: 10px;
+        }
+        .mock-order-panel .btn {
+            font-size: 13px;
+            padding: 8px;
+        }
+
+        @media (max-width: 400px) {
+            .header { padding: 12px 14px; }
+            .order-section { padding: 12px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- 登录界面 -->
+<div class="login-screen" id="loginScreen">
+    <div class="login-card">
+        <div class="login-title">🚕 司机端</div>
+        <div class="login-subtitle">出租车调度系统</div>
+        <div class="form-group">
+            <label>手机号</label>
+            <input type="tel" id="loginPhone" placeholder="请输入手机号" maxlength="11">
+        </div>
+        <button class="btn-primary" id="loginBtn" onclick="driverLogin()">登录</button>
+        <p style="text-align:center;margin-top:16px;font-size:12px;color:#888;">测试手机号：13800138000</p>
+    </div>
+</div>
+
+<!-- 主界面 -->
+<div class="main-screen" id="mainScreen">
+    <!-- 顶部 -->
+    <div class="header">
+        <div class="header-info">
+            <span class="header-name" id="driverName">司机</span>
+            <span class="header-car" id="driverCar">-</span>
+        </div>
+        <div class="status-badge offline" id="statusBadge" onclick="toggleStatus()">离线</div>
+    </div>
+
+    <div class="content-wrap">
+        <!-- 地图区域 -->
+        <div class="map-container">
+            <div class="map-placeholder">
+                <div class="icon">🗺️</div>
+                <div id="mapStatus">位置模拟中...</div>
+            </div>
+            <div class="location-log" id="locationLog">
+                <div>等待定位...</div>
+            </div>
+        </div>
+
+        <!-- 状态切换 -->
+        <div class="status-bar">
+            <button class="status-btn offline active" data-status="offline" onclick="setStatus('offline')">🚫 离线</button>
+            <button class="status-btn online" data-status="online" onclick="setStatus('online')">🟢 接单</button>
+            <button class="status-btn busy" data-status="busy" onclick="setStatus('busy')">🔶 勿扰</button>
+        </div>
+
+        <!-- 当前订单 -->
+        <div class="order-section">
+            <div class="section-title">📋 当前订单</div>
+            <div id="orderArea">
+                <div class="order-card no-order">
+                    <div class="icon">📭</div>
+                    <p>暂无待处理订单</p>
+                    <p style="font-size:12px;margin-top:6px;">开启接单模式后将自动匹配</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 模拟订单（测试用） -->
+        <div class="order-section" id="mockPanel" style="display:none;">
+            <div class="section-title">🧪 模拟测试</div>
+            <div class="mock-order-panel">
+                <h4>⚡ 快速创建测试订单</h4>
+                <button class="btn btn-accept" onclick="createMockOrder()">创建模拟订单</button>
+            </div>
+        </div>
+
+        <!-- 历史订单 -->
+        <div class="history-section">
+            <div class="section-title">📜 历史行程</div>
+            <div id="historyArea">
+                <div class="order-card no-order" style="padding:20px;">
+                    <p>暂无历史行程</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 底部导航 -->
+    <div class="bottom-nav">
+        <div class="nav-item active" onclick="switchTab('order')">
+            <span class="icon">📍</span>
+            <span>订单</span>
+        </div>
+        <div class="nav-item" onclick="switchTab('history')">
+            <span class="icon">📋</span>
+            <span>记录</span>
+        </div>
+        <div class="nav-item" onclick="driverLogout()">
+            <span class="icon">🚪</span>
+            <span>退出</span>
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast" style="display:none;"></div>
+
+<script src="driver.js"></script>
+</body>
+</html>
